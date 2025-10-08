@@ -7,18 +7,21 @@ def ssmm_S(S_val,y_tr=None):
   n_val,n_tr=S_val.shape
   I_n=np.eye(n_tr)
   if y_tr is None:
+    #return np.abs(np.trace(1/n_tr*I_n-1/n_val*S_val.T@S_val))
     return np.linalg.norm(1/n_tr*I_n-1/n_val*S_val.T@S_val)
   else:
     return np.abs(y_tr.T@(1/n_tr*I_n-1/n_val*S_val.T@S_val)@y_tr)[0][0]
 
-def loogcv_S(S_tr,y_tr=None,gcv=False):
+def loogcv_S(S_tr,y_tr=None,gcv=True):
   n_tr=S_tr.shape[0]
   I_n=np.eye(n_tr)
   IS=I_n-S_tr
   if y_tr is None:
     if gcv:
+      #return np.abs(np.trace(IS.T@IS))/(1e-8+np.trace(IS)**2)
       return np.linalg.norm(IS.T@IS)/(1e-8+np.trace(IS)**2)
     else:
+      #return np.abs(np.trace(IS.T@np.diag(1/np.diag(1e-8+IS)**2)@IS))
       return np.linalg.norm(IS.T@np.diag(1/np.diag(1e-8+IS)**2)@IS)
   else:
     if gcv:
@@ -34,10 +37,20 @@ def kern(Xa,Xb,sigma, nu=np.inf):
   XaXb=Xa.dot(Xb.T)
   Xb2=np.sum(Xb**2,1).reshape((-1,1))
   D2=Xa2-2*XaXb+Xb2.T
-  return np.exp(-0.5*D2/sigma**2)
+  D=np.sqrt(D2+1e-10)
+  if nu==0.5:      #Laplace
+    return np.exp(-D/sigma)
+  elif nu==1.5:
+    return (1+np.sqrt(3)*D/sigma)*np.exp(-np.sqrt(3)*D/sigma)
+  elif nu==2.5:
+    return (1+np.sqrt(5)*D/sigma+5*D2/(3*sigma**2))*np.exp(-np.sqrt(5)*D/sigma)
+  elif nu==10:     #Cauchy (could have been any number, but I chose 10 for no particular reason)
+    return 1/(1+D2/sigma**2)
+  else:            #Gaussian
+    return np.exp(-0.5*D2/sigma**2)
 
 
-def loogcv(X_tr,lbdas,sigmas, y_tr=None, gcv=False,nu=100):
+def loogcv(X_tr,lbdas,sigmas, y_tr=None, gcv=True,nu=100):
   n_tr,p=X_tr.shape
   I_n=np.eye(n_tr)
   best_mse=np.inf
@@ -52,14 +65,11 @@ def loogcv(X_tr,lbdas,sigmas, y_tr=None, gcv=False,nu=100):
         IS=np.linalg.inv(K_tr+lbda*I_n)
       if y_tr is None:
         if gcv:
+          #mse=np.abs(np.trace(IS.T@IS))/(np.trace(IS)**2)
           mse=np.linalg.norm(IS.T@IS)/(np.trace(IS)**2)
         else:
+          #mse=np.abs(np.trace(IS.T@np.diag(1/np.diag(IS)**2)@IS))
           mse=np.linalg.norm(IS.T@np.diag(1/np.diag(IS)**2)@IS)
-      elif np.linalg.norm(y_tr)==0:
-        if gcv:
-          mse=np.trace(IS.T@IS)/(np.trace(IS)**2)
-        else:
-          mse=np.trace(IS.T@np.diag(1/np.diag(IS)**2)@IS)
       else:
         if gcv:
           mse=y_tr.T@IS.T@IS@y_tr/(np.trace(IS)**2)
@@ -89,9 +99,8 @@ def ssmm(X_tr,X_val,lbdas,sigmas,y_tr=None, nu=100):
       else:
         A=np.linalg.inv(K_tr+lbda*I_n)
       if y_tr is None:
+        #mse=np.abs(np.trace(1/n_val*A.T@K_val.T@K_val@A-1/n_tr*I_n))
         mse=np.linalg.norm(1/n_val*A.T@K_val.T@K_val@A-1/n_tr*I_n)
-      elif np.linalg.norm(y_tr)==0:
-        mse=np.abs(np.trace(1/n_val*A.T@K_val.T@K_val@A-1/n_tr*I_n))
       else:
         mse=(y_tr.T@(1/n_val*A.T@K_val.T@K_val@A-1/n_tr*I_n)@y_tr)**2
       if mse<=best_mse:
@@ -149,7 +158,7 @@ def make_real_data(data, seed, n_tr=200):
   elif data=='steel':
     dm_all=pd.read_csv('csv_files/steel.csv',sep=',').to_numpy()
   elif data=='cifar':
-    with open('csv_files/cifar_batch_1','rb') as cf:
+    with open('csv_files/cifar-10-batches-py/data_batch_1','rb') as cf:
       cd = pickle.load(cf,encoding='bytes')
     dm_all=np.hstack((np.array(cd[b'labels']).reshape(-1,1),cd[b'data']))
   elif data=='mnist':
@@ -198,7 +207,8 @@ def make_spline(x_tr,x_te,dt=0.001):
       Omega[tj,ti]=omij
   return B_tr,B_te,Omega
 
-def ssmm_loocv(x_tr,x_te,lbdas, sigmas=[0], y_tr=None):
+
+def ssmm_loogcv(x_tr,x_te,lbdas, sigmas=[0], y_tr=None, gcv=True):
   b_krr=(len(sigmas)>1)
   n_tr=x_tr.shape[0]
   n_te=x_te.shape[0]
@@ -218,16 +228,19 @@ def ssmm_loocv(x_tr,x_te,lbdas, sigmas=[0], y_tr=None):
           S=K_te@np.linalg.inv(K_tr+lbda*I_n)
         else:
           S=B_te@np.linalg.inv(B_tr.T@B_tr+lbda*Omega+1e-8*np.eye(B_tr.shape[1]))@B_tr.T
+        #mse=np.abs(np.trace(1/n_te*S.T@S-1/n_tr*I_n))
         mse=np.linalg.norm(1/n_te*S.T@S-1/n_tr*I_n)
       else:
         if b_krr:
           IS=I_n-K_tr@np.linalg.inv(K_tr+lbda*I_n)
         else:
           IS=I_n-B_tr@np.linalg.inv(B_tr.T@B_tr+lbda*Omega+1e-8*np.eye(B_tr.shape[1]))@B_tr.T
-        mse=(y_tr.T@IS.T@np.diag(1/np.diag(1e-8+IS)**2)@IS@y_tr)[0][0]
+        if gcv:
+          mse=(y_tr.T@IS.T@IS@y_tr/(1e-8+np.trace(IS)**2))[0][0]
+        else:
+          mse=(y_tr.T@IS.T@np.diag(1/np.diag(1e-8+IS)**2)@IS@y_tr)[0][0]
       if mse<=best_mse:
         best_mse=mse
         best_lbda=lbda
         best_sigma=sigma
   return best_lbda, best_sigma
-

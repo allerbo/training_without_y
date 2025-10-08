@@ -2,7 +2,7 @@ import numpy as np
 import sys
 from matplotlib import pyplot as plt
 from matplotlib.lines import Line2D
-from help_fcts import kern
+from help_fcts import kern, r2, loogcv, ssmm, ssmm_S
 
 np.random.seed(3)
 
@@ -28,31 +28,25 @@ labs = ['True Function', 'Noisy Observations']
 I_tr=np.eye(n_tr)
 
 
-fig, ax=plt.subplots(1,1,figsize=(7,2))
-fig1, ax1=plt.subplots(1,1,figsize=(7,2.5))
+fig, ax=plt.subplots(1,1,figsize=(5,1.8))
 _=ax.plot(x_te,y_te,'C7', lw=2)
 _=ax.plot(x_tr,y_tr,'ok')
-_=ax1.plot(x_te,y_te,'C7', lw=2)
-_=ax1.plot(x_tr,y_tr,'ok')
 for lbda,sigma,cc in zip([0,0,0], [1.3,.16,.01], ['C3','C2', 'C1']):
   K_tr=kern(x_tr,x_tr,sigma)
   K_te=kern(x_te,x_tr,sigma)
   _=ax.plot(x_te,K_te@np.linalg.solve(K_tr+lbda*I_tr,y_tr),cc)
-  _=ax1.plot(x_te,K_te@np.linalg.solve(K_tr+lbda*I_tr,y_tr),cc)
   S_tr=K_tr@np.linalg.inv(K_tr+lbda*I_tr)
   S_te=K_te@np.linalg.inv(K_tr+lbda*I_tr)
+  print(np.trace(S_tr))
 
 
 _=ax.set_xticks([])
 _=ax.set_yticks([])
 _=ax.set_ylim([-1.4,1.6])
 
-_=ax1.set_xticks([])
-_=ax1.set_yticks([])
-_=ax1.set_ylim([-1.4,1.6])
 
 fig.legend(lines, labs, loc='lower center', ncol=2)
 fig.tight_layout()
-fig.subplots_adjust(bottom=.18)
+fig.subplots_adjust(bottom=.2)
 fig.savefig('figures/compl_demo.pdf')
 

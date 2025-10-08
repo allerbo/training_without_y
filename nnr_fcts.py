@@ -1,16 +1,19 @@
 import jax
 import numpy as np
 import jax.numpy as jnp
-from jax import jit
+from jax import grad, jacrev, jit
 from flax import linen as nn
 import optax
 from flax.training.train_state import TrainState
 
-def init_model(DIM_X, DIM_H, DIM_Y, dt, gamma, seed=0):
+def init_model(DIM_X, DIM_H, DIM_Y, dt, gamma, use_nag=False, n_lay=1, seed=0):
   rng, init_rng = jax.random.split(jax.random.PRNGKey(seed), 2)
-  model=reg_fl(DIM_H, DIM_Y)
+  if n_lay==2:
+    model=reg_fl2(DIM_H, DIM_Y)
+  else:
+    model=reg_fl(DIM_H, DIM_Y)
   theta=model.init(init_rng,jnp.ones((5,DIM_X)))
-  opt=optax.sgd(dt, gamma)
+  opt=optax.sgd(dt, gamma, use_nag)
   model_state = TrainState.create(apply_fn=model.apply, params=theta, tx=opt)
   return model_state
 
@@ -19,6 +22,18 @@ class reg_fl(nn.Module):
   DIM_Y: int
   @nn.compact
   def __call__(self,x):
+    x=nn.Dense(self.DIM_H,param_dtype=jnp.float64)(x)
+    x=nn.activation.tanh(x)
+    x=nn.Dense(self.DIM_Y,param_dtype=jnp.float64, kernel_init=nn.initializers.zeros)(x)
+    return x
+
+class reg_fl2(nn.Module):
+  DIM_H: int
+  DIM_Y: int
+  @nn.compact
+  def __call__(self,x):
+    x=nn.Dense(self.DIM_H,param_dtype=jnp.float64)(x)
+    x=nn.activation.tanh(x)
     x=nn.Dense(self.DIM_H,param_dtype=jnp.float64)(x)
     x=nn.activation.tanh(x)
     x=nn.Dense(self.DIM_Y,param_dtype=jnp.float64, kernel_init=nn.initializers.zeros)(x)
@@ -40,9 +55,9 @@ def get_K(X_tr,X_val,X_te, model_state):
   def fh_th(X,theta,model_state):
     return model_state.apply_fn(theta,X)
   
-  jac_dict_tr= jax.jacrev(fh_th,argnums=1)(X_tr,model_state.params,model_state)
-  jac_dict_val= jax.jacrev(fh_th,argnums=1)(X_val,model_state.params,model_state)
-  jac_dict_te= jax.jacrev(fh_th,argnums=1)(X_te,model_state.params,model_state)
+  jac_dict_tr= jacrev(fh_th,argnums=1)(X_tr,model_state.params,model_state)
+  jac_dict_val= jacrev(fh_th,argnums=1)(X_val,model_state.params,model_state)
+  jac_dict_te= jacrev(fh_th,argnums=1)(X_te,model_state.params,model_state)
   
   k1=list(jac_dict_tr['params'].keys())[0]
   k2=list(jac_dict_tr['params'][k1].keys())[0]
@@ -56,7 +71,7 @@ def get_K(X_tr,X_val,X_te, model_state):
   
   for k1 in jac_dict_tr['params'].keys():
     for k2 in jac_dict_tr['params'][k1].keys():
-      Ph_tr_s=jac_dict_tr['params'][k1][k2].reshape(n_tr,-1)
+      Ph_tr_s=jac_dict_tr['params'][k1][k2].reshape(n_tr,-1) #why no squeeze here?
       Ph_val_s=jnp.squeeze(jac_dict_val['params'][k1][k2]).reshape(n_val,-1)
       Ph_te_s=jnp.squeeze(jac_dict_te['params'][k1][k2]).reshape(n_te,-1)
       K_tr+=Ph_tr_s@Ph_tr_s.T

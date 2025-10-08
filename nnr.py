@@ -1,28 +1,28 @@
 import numpy as np
 from matplotlib import pyplot as plt
 import time
-from help_fcts import r2, make_real_data,  loogcv_S, ssmm_S
+from help_fcts import r2, make_real_data, loogcv_S, ssmm_S
 from nnr_fcts import init_model, train_step, get_K, get_S
 import os, sys
 os.environ['JAX_ENABLE_X64']='True'
 from jax import config as jc
-jc.update('jax_platform_name', 'cpu')
+jc.update('jax_platform_name', 'cpu') #quicker?
 import jax.numpy as jnp
 
 
 
-ALGS=['ssmm_n', 'loocv_n']
+ALGS=['ssmm_n', 'gcv_n']
 
-def loocv_n(S_tr,S_val,y_tr,y_tr_r):
+def gcv_n(S_tr,S_val,y_tr,y_tr_r):
   return loogcv_S(S_tr)
 
 def ssmm_n(S_tr,S_val,y_tr,y_tr_r):
   return ssmm_S(S_val)
 
-
 DIM_H=200
 dt=1e-4
 gamma=0.7
+Y_R=True
 N_TR=500
 
 for arg in range(1,len(sys.argv)):
@@ -74,7 +74,10 @@ for data in ['steel','cpu','super','power']:
       
       if epoch % 20 == 0:
         K_tr, K_val, K_te=get_K(X_tr,X_val,X_te,model_state)
-      model_state = train_step(model_state, X_tr, y_tr_r)
+      if Y_R:
+        model_state = train_step(model_state, X_tr, y_tr_r)
+      else:
+        model_state = train_step(model_state, X_tr, y_tr)
       S_tr, S_tr_old, S_val, S_val_old, S_te, S_te_old = get_S(K_tr,K_val,K_te,S_tr, S_val,S_te,S_tr_old,S_val_old,S_te_old,dt,gamma)
      
     for alg in ALGS:

@@ -1,28 +1,32 @@
 import numpy as np
 from matplotlib import pyplot as plt
 import time
-from help_fcts import acc, make_real_data, loogcv_S, ssmm_S
+from help_fcts import acc, make_real_data, kern, loogcv_S, ssmm_S
 from nnc_fcts import init_model, train_step, get_K, get_S, get_Ft
 import os, sys
 os.environ['JAX_ENABLE_X64']='True'
 from jax import config as jc
-jc.update('jax_platform_name', 'cpu')
+jc.update('jax_platform_name', 'cpu') #quicker?
 import jax.numpy as jnp
 
 
 
-ALGS=['ssmm_n', 'loocv_n']
+ALGS=['ssmm_n', 'gcv_n']
 
 def ssmm_n(S_tr,S_val,y_tr,y_tr_r):
   return ssmm_S(S_val.reshape(S_val.shape[0]*S_val.shape[1],S_val.shape[2]*S_val.shape[3]))
 
-def loocv_n(S_tr,S_val,y_tr,y_tr_r):
+def gcv_n(S_tr,S_val,y_tr,y_tr_r):
   return loogcv_S(S_tr.reshape(S_tr.shape[0]*S_tr.shape[1],S_tr.shape[2]*S_tr.shape[3]))
+
+
 
 
 
 dt=1e-4
 gamma=0.7
+use_nag=False
+Y_R=True
 N_TR=500
 DIM_H=200
 
@@ -53,7 +57,7 @@ for data in ['mnist','cifar']:
     dim_y=y_tr.shape[1]
     y_tr_r=np.eye(dim_y)[np.random.randint(0,dim_y,n_tr)]
     
-    model_state = init_model(p,DIM_H,dim_y, dt, gamma)
+    model_state = init_model(p,DIM_H,dim_y, dt, gamma, use_nag,n_lay=1)
     
     fh_tr0=model_state.apply_fn(model_state.params,X_tr)
     fh_val0=model_state.apply_fn(model_state.params,X_val)
@@ -76,11 +80,15 @@ for data in ['mnist','cifar']:
         epochs_seed.append(epoch)
         for alg in ALGS:
           errors_seed[alg].append(eval(alg)(S_tr,S_val,y_tr,y_tr_r))
-      if epoch % 20 == 0:
+      if epoch % 20 == 0 and Y_R:
         K_tr, K_val, K_te=get_K(X_tr,X_val,X_te,model_state)
         Ft=get_Ft(X_tr,model_state)
-      model_state = train_step(model_state, X_tr, y_tr_r)
-      S_tr, S_tr_old, S_val, S_val_old, S_te, S_te_old = get_S(K_tr,K_val,K_te,S_tr, S_val,S_te,S_tr_old,S_val_old,S_te_old,Ft,dt,gamma)
+      if Y_R:
+        model_state = train_step(model_state, X_tr, y_tr_r)
+      else:
+        model_state = train_step(model_state, X_tr, y_tr)
+      if Y_R:
+        S_tr, S_tr_old, S_val, S_val_old, S_te, S_te_old = get_S(K_tr,K_val,K_te,S_tr, S_val,S_te,S_tr_old,S_val_old,S_te_old,Ft,dt,gamma)
       if jnp.isnan(jnp.sum(S_tr)):
         break
     

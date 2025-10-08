@@ -4,7 +4,8 @@ import time
 from help_fcts import r2, make_real_data
 from nnr_fcts import init_model, train_step
 import os, sys
-os.environ['JAX_ENABLE_X64']='True'
+#os.environ['JAX_ENABLE_X64']='True'
+#jax.config.update('jax_platform_name', 'cpu') #quicker?
 
 
 
@@ -12,6 +13,7 @@ os.environ['JAX_ENABLE_X64']='True'
 DIM_H=200
 dt=1e-4
 gamma=0.7
+Y_R=False
 N_TR=500
 
 for arg in range(1,len(sys.argv)):
@@ -38,10 +40,15 @@ for data in ['steel','cpu','super','power']:
     n_val=X_val.shape[0]
     n_te=X_te.shape[0]
 
-    model_state = init_model(p, DIM_H, 1, dt, gamma)
+    y_tr0=np.random.normal(0,np.std(y_tr),y_tr.shape)
+    
+    model_state = init_model(p, DIM_H, 1, dt, gamma, n_lay=1)
     
     for epoch in range(1001):
-      model_state = train_step(model_state, X_tr, y_tr)
+      if Y_R:
+        model_state = train_step(model_state, X_tr, y_tr0)
+      else:
+        model_state = train_step(model_state, X_tr, y_tr)
       
       if epoch % 5==0:
         r2_tr=r2(y_tr,model_state.apply_fn(model_state.params,X_tr))

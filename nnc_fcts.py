@@ -1,16 +1,21 @@
 import jax
 import numpy as np
 import jax.numpy as jnp
-from jax import jit
+from jax import grad, jacrev, jit
 from flax import linen as nn
 import optax
 from flax.training.train_state import TrainState
 
-def init_model(DIM_X, DIM_H, DIM_Y, dt, gamma, seed=0):
+def init_model(DIM_X, DIM_H, DIM_Y, dt, gamma, use_nag=False, n_lay=1, seed=0):
   rng, init_rng = jax.random.split(jax.random.PRNGKey(seed), 2)
-  model=class_fl(DIM_H, DIM_Y)
+  if n_lay==3:
+    model=class_fl3(DIM_H, DIM_Y)
+  elif n_lay==2:
+    model=class_fl2(DIM_H, DIM_Y)
+  else:
+    model=class_fl(DIM_H, DIM_Y)
   theta=model.init(init_rng,jnp.ones([1,DIM_X]))
-  opt=optax.sgd(dt, gamma)
+  opt=optax.sgd(dt, gamma, use_nag)
   model_state = TrainState.create(apply_fn=model.apply, params=theta, tx=opt)
   return model_state
 
@@ -25,12 +30,41 @@ class class_fl(nn.Module):
     x=nn.activation.softmax(x)
     return x
 
+class class_fl2(nn.Module):
+  DIM_H: int
+  DIM_Y: int
+  @nn.compact
+  def __call__(self,x):
+    x=nn.Dense(self.DIM_H,param_dtype=jnp.float64)(x)
+    x=nn.activation.tanh(x)
+    x=nn.Dense(self.DIM_H,param_dtype=jnp.float64)(x)
+    x=nn.activation.tanh(x)
+    x=nn.Dense(self.DIM_Y,param_dtype=jnp.float64, kernel_init=nn.initializers.zeros)(x)
+    x=nn.activation.softmax(x)
+    return x
+
+class class_fl3(nn.Module):
+  DIM_H: int
+  DIM_Y: int
+  @nn.compact
+  def __call__(self,x):
+    x=nn.Dense(self.DIM_H,param_dtype=jnp.float64)(x)
+    x=nn.activation.tanh(x)
+    x=nn.Dense(self.DIM_H,param_dtype=jnp.float64)(x)
+    x=nn.activation.tanh(x)
+    x=nn.Dense(self.DIM_H,param_dtype=jnp.float64)(x)
+    x=nn.activation.tanh(x)
+    x=nn.Dense(self.DIM_Y,param_dtype=jnp.float64, kernel_init=nn.initializers.zeros)(x)
+    x=nn.activation.softmax(x)
+    return x
+
+
 
 @jit
 def train_step(model_state, x, y):
   def cross_entr(theta):
     fh = model_state.apply_fn(theta, x)
-    return -(jnp.sum(jnp.log(fh+1e-7)*y))
+    return -(jnp.sum(jnp.log(fh+1e-7)*y))#+jnp.log(1-jnp.sum(fh,1)+1e-7)@(1-jnp.sum(y,1)))
   
   loss, grads = jax.value_and_grad(cross_entr)(model_state.params)
   model_state = model_state.apply_gradients(grads=grads)
@@ -41,9 +75,9 @@ def get_K(X_tr,X_val,X_te, model_state):
   def fh_th(X,theta,model_state):
     return model_state.apply_fn(theta,X)[:,:-1]
   
-  jac_dict_tr= jax.jacrev(fh_th,argnums=1)(X_tr,model_state.params,model_state)
-  jac_dict_val= jax.jacrev(fh_th,argnums=1)(X_val,model_state.params,model_state)
-  jac_dict_te= jax.jacrev(fh_th,argnums=1)(X_te,model_state.params,model_state)
+  jac_dict_tr= jacrev(fh_th,argnums=1)(X_tr,model_state.params,model_state)
+  jac_dict_val= jacrev(fh_th,argnums=1)(X_val,model_state.params,model_state)
+  jac_dict_te= jacrev(fh_th,argnums=1)(X_te,model_state.params,model_state)
   
   k1=list(jac_dict_tr['params'].keys())[0]
   k2=list(jac_dict_tr['params'][k1].keys())[0]
@@ -74,7 +108,6 @@ def get_S(K_tr,K_val,K_te,S_tr, S_val,S_te,S_tr_old,S_val_old,S_te_old,Ft,dt=0.0
   S_val_new= S_val+gamma*(S_val-S_val_old)+dt*jnp.einsum('ijkl,klmn',K_val,FtIS)
   S_te_new= S_te+gamma*(S_te-S_te_old)+dt*jnp.einsum('ijkl,klmn',K_te,FtIS)
   return S_tr_new, S_tr, S_val_new, S_val, S_te_new, S_te
-
 
 @jit
 def get_Ft(X_tr,model_state):

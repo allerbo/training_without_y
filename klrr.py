@@ -6,13 +6,13 @@ import sys
 
 
 N_TR=500
-ALGS=['cv10_y', 'ssmm_n', 'loocv_n']
+ALGS=['cv10_y', 'ssmm_n', 'gcv_n']
 
 for arg in range(1,len(sys.argv)):
   exec(sys.argv[arg])
 
-def loocv_n(X_tr,X_val,y_tr,y_tr_r,lbdas,sigmas,nu):
-  return loogcv(X_tr,lbdas,sigmas,y_tr=None,gcv=False,nu=nu)
+def gcv_n(X_tr,X_val,y_tr,y_tr_r,lbdas,sigmas,nu):
+  return loogcv(X_tr,lbdas,sigmas,y_tr=None,nu=nu)
 
 def cv10_y(X_tr,X_val,y_tr,y_tr_r,lbdas,sigmas,nu):
   return cv10(X_tr,lbdas,sigmas,y_tr, nu=nu)
@@ -23,7 +23,14 @@ def ssmm_n(X_tr,X_val,y_tr,y_tr_r,lbdas,sigmas,nu):
 
 lbdas_seed=np.hstack(([1e-6],np.geomspace(1e-3,100,10),[1e6]))
 for NU in [0,100]:
-  sigmas_seed=[0] if NU==0 else np.hstack((np.geomspace(1e-4,200,20),[1e6]))
+  if NU==0:
+    print('LRR')
+  else:
+    print('KRR')
+  if NU==0:
+    sigmas_seed=[0]
+  else:
+    sigmas_seed=np.hstack((np.geomspace(1e-4,200,20),[1e6]))
   seeds=range(10)
   for data in ['steel','cpu','super','power']:
     r2_trs={}
@@ -55,7 +62,8 @@ for NU in [0,100]:
         r2_trs[alg].append(r2(y_tr,fh_tr))
         lbdas[alg].append(lbda)
         sigmas[alg].append(sigma)
-     
+        
+  
     for ii, alg in enumerate(ALGS):
       if ii==0:
         print(('\\multirow{'+str(len(ALGS))+'}{*}{'+data+'}').ljust(22),end='')
