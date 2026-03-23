@@ -1,5 +1,6 @@
 import numpy as np
 from matplotlib import pyplot as plt
+plt.rcParams.update({'pdf.fonttype': 42, 'text.usetex': True, 'font.family': 'serif', 'font.serif': ['Computer Modern Roman']})
 
 np.random.seed(0)
 
@@ -11,12 +12,12 @@ cl1=np.random.normal(0,sig,(n,2))+np.array((1,1))
 cl2=np.random.normal(0,sig,(n,2))+np.array((-1,-1))
 cl3=np.random.normal(0,sig,(n,2))+np.array((1,-1))
 
-cs=[['oC0','oC1','oC2','oC3'], ['ok','ok','ok','ok'], ['ok','ok','ok','ok'], ['oC0','oC1','oC2','oC3']]
+cs=[['oC0','oC1','oC2','oC3'], ['oC7','oC7','oC7','oC7'], ['oC7','oC7','oC7','oC7'], ['oC0','oC1','oC2','oC3']]
 titles=['a','b','c','d']
 
 fig, axs=plt.subplots(2,2,figsize=(5,5))
 for ii, (ax, c, title) in enumerate(zip(axs.ravel(),cs, titles)):
-  _=ax.set_title(title)
+  _=ax.set_title(title, fontsize=15)
   _=ax.plot(cl0[:,0],cl0[:,1],c[0],ms=3)
   _=ax.plot(cl1[:,0],cl1[:,1],c[1],ms=3)
   _=ax.plot(cl2[:,0],cl2[:,1],c[2],ms=3)

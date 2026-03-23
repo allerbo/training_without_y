@@ -2,7 +2,10 @@ import numpy as np
 import sys
 from matplotlib import pyplot as plt
 from matplotlib.lines import Line2D
-from help_fcts import kern, r2, loogcv, ssmm, ssmm_S
+plt.rcParams.update({'pdf.fonttype': 42, 'text.usetex': True, 'font.family': 'serif', 'font.serif': ['Computer Modern Roman']})
+
+def kern(xa,xb,sigma):
+  return np.exp(-0.5*(xa-xb.T)**2/sigma**2)
 
 np.random.seed(3)
 

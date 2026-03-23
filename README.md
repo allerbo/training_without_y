@@ -24,9 +24,5 @@ python wo_y_demo.py
 
 ## Table 2:
 ```
-python nnc.py
-python nnc_st.py
-python klrr.py
-python nnr.py
-python nnr_st.py
+python real_data.py
 ```
