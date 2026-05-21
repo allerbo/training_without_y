@@ -1,4 +1,4 @@
-This is the code used in the article **Is Supervised Learning Really That Different from Unsupervised?**, availible at https://arxiv.org/abs/2505.11006.
+This is the code used in the article **Is Supervised Learning Really That Different from Unsupervised?**, availible at https://openreview.net/forum?id=x09RDZBfdc.
 
 To save space, the MNIST and CIFAR10 data are not included in the repo, but have to be manually downloaded from, e.g., http://yann.lecun.com/exdb/mnist/ and https://www.cs.toronto.edu/~kriz/cifar.html.
 
